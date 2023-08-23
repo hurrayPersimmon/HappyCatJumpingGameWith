@@ -5,8 +5,9 @@ import { getRandomEnemyType, Entities } from './Entities.js';
 class Canvas extends Component {
   constructor(props) {
     super(props);
-    this.canvas = document.getElementById('myCanvas');
-    this.$otherCanvas = document.getElementById('otherCanvas');
+    this.canvas = null;
+    this.$otherCanvas = null;
+
     this.animationFrameId = null;
     this.handleKeydown = this.handleKeydown.bind(this);
     this.backImg = new Image();
@@ -27,153 +28,12 @@ class Canvas extends Component {
     this.remoteStream = null;
     this.localVideo = null;
 
-
-
-
     if (this.canvas) {
       this.canvasWidth = this.canvas.width;
       this.canvasHeight = this.canvas.height;
     }
 
   }
-    startAction = () => {
-      const mediaStreamContraints = {
-        video : true,
-      }
-      navigator.mediaDevices.getUserMedia(mediaStreamContraints)
-      .then(this.gotLocalMediaStream).catch(this.handelLocalMediaStreamError);
-      console.log('Requesting local Stream')
-    }
-
-    gotLocalMediaStream = (mediaStream) => {
-      this.localVideo.srcObject = mediaStream;
-      this.localStream = mediaStream;
-      console.log('Received local Stream')
-    }
-
-    callAction = () => {
-      console.trace('Starting call.');
-
-      const videoTracks = this.localStream.getVideoTracks();
-      if(videoTracks.length > 0){
-        console.log(`Using vedio device : ${videoTracks[0].label}`)
-      }
-
-      const servers = 'http://localhost:3000/'; //Allows for RTC server configuration.
-
-      const offerOptions = {
-        offerToReceiveVideo : 1,
-      }
-
-      //동료 연결
-      this.localPeerConnection = new RTCPeerConnection(servers);
-      console.log('Created local peer connection object localPeerConnection');
-      
-      this.localPeerConnection.addEventListener('icecandidate',this.handleConnection);
-      this.localPeerConnection.addEventListener('iceconnection state change', this.handleConnectionChange);
-      
-      this.remotePeerConnection = new RTCPeerConnection(servers);
-      
-      this.remotePeerConnection.addEventListener('ice connection state change', this.handleConnectionChange);
-      this.remotePeerConnection.addEventListener('addstream', this.gotRemoteMediaStream);
-      
-      this.localPeerConnection.addStream(this.localStream);
-      this.localPeerConnection.createOffer(offerOptions)
-      .then(this.createdOffer).catch(this.setSessionDescriptionError);
-    
-    }
-
-    handleConnection = (event) => {
-      const peerConnection = event.target;
-      const iceCandidate = event.candidate;
-
-      if(iceCandidate) {
-        const newIceCandidate = new RTCIceCandidate(iceCandidate);
-        const otherPeer = this.getOtherPeer(peerConnection);
-
-        otherPeer.addIceCandidate(newIceCandidate)
-        .then(() => {
-          this.handleConnectionSuccess(peerConnection);
-        }).catch((error) => {
-          this.handleConnectionFailure(peerConnection, error);
-        });
-
-
-      }
-    }
-
-    getOtherPeer = (peerConnection) => {
-      return (peerConnection === this.localPeerConnection) ?
-      this.remotePeerConnection : this.localPeerConnection;
-    }
-
-    getPeerName(peerConnection){
-      return(peerConnection === this.localPeerConnection) ?
-      'localPeerConnection' : 'remotePeerConnection'
-    }
-
-    handleConnectionChange = (event) => {
-      const peerConnection = event.target;
-    }
-
-    gotRemoteMediaStream = (event) => {
-      const mediaStream = event.stream;
-      this.$otherCanvas.srcObject = mediaStream;
-      this.remoteStream = mediaStream;
-      
-    }
-
-    createdOffer = (description) => {
-      this.localPeerConnection.setLocalDescription(description)
-      .then(() => {
-        this.setLocalDescriptionSuccess(this.localPeerConnection);
-      }).catch(this.setSessionDescriptionError);
-
-      this.remotePeerConnection.setLocalDescription(description)
-      .then(() => {
-        this.setRemoteDescriptionSuccess(this.remotePeerConnection);
-      }).catch(this.setSessionDescriptionError);
-
-      this.remotePeerConnection.createAnswer()
-      .then(this.createdAnswer)
-      .catch(this.setSessionDescriptionError);
-    }
-
-    createdAnswer = (description) => {
-      this.remotePeerConnection.setLocalDescription(description)
-      .then(() => {
-        this.setLocalDescriptionSuccess(this.remotePeerConnection);
-      }).catch(this.setSessionDescriptionError);
-
-      this.localPeerConnection.setRemoteDescription(description)
-      .then(() => {
-        this.setRemoteDescriptionSuccess(this.localPeerConnection);
-      }).catch(this.setSessionDescriptionError)
-    }
-
-    setDescriptionSuccess = (peerConnection) => {
-      const peerName = this.getPeerName(peerConnection);
-      console.trace(`${peerName} complete`);
-
-    }
-
-    setLocalDescriptionSuccess = (peerConnection) => {
-      this.setDescriptionSuccess(peerConnection);
-    }
-
-    setRemoteDescriptionSuccess = (peerConnection) => {
-      this.setDescriptionSuccess(peerConnection);
-
-    }
-
-    setSessionDescriptionSuccess = (peerConnection) => {
-      const peerName = this.getPeerName(peerConnection);
-      console.trace(`${peerName} complete`)
-    }
-
-    setSessionDescriptionError = (error) => {
-      console.trace(`Failed to create session description : ${error}`)
-    }
 
 
   // successCallback = (stream) => {
@@ -197,19 +57,28 @@ class Canvas extends Component {
 
   componentDidMount() {
     this.canvas = document.getElementById('myCanvas');
+    this.$otherCanvas = document.getElementById('otherCanvas');
+    this.localVideo = this.canvas;
     this.ctx = this.canvas.getContext('2d');
+
     this.entityConstructor();
+    window.addEventListener('keydown', this.handleKeydown);
+    this.startActions();
 
-
-    // this.timer = 0;
+        // this.timer = 0;
     // this.timerOn = false;
     // this.userFrame = 0;
-    this.ctx = this.canvas.getContext('2d');
-    this.startAnimation();
-    window.addEventListener('keydown', this.handleKeydown);
 
-    this.startAction();
+  }
 
+  startActions = async () => {
+    if(this.canvas) {
+      await this.startAction();
+      this.callAction();
+
+      this.startAnimation();
+    }
+    
   }
 
 
@@ -238,10 +107,6 @@ class Canvas extends Component {
       this.me.draw();
       this.me.Jump();
       this.spawnEnemy();
-      this.callAction();
-
-      
-
     }
     // this.calculateUserFrame();
     // 다시 넣음으로써 한프레임 지나면 발현.
@@ -387,6 +252,171 @@ class Canvas extends Component {
   
   //------------------------------------    keydownEvent     ---------------------------------------
 
+  startAction = async () => {
+    const mediaStreamContraints = {
+      width : 1150,
+      height : 500,
+    }
+
+    const mediaStream = this.canvas.captureStream(120); // 120 FPS
+    console.log(mediaStream);
+    // const mediaStream = await navigator.mediaDevices.getUserMedia(mediaStreamContraints)
+
+    this.gotLocalMediaStream(mediaStream);
+
+    // .then().catch(this.handelLocalMediaStreamError);
+    console.log('Requesting local Stream')
+  }
+
+  gotLocalMediaStream = (mediaStream) => {
+    this.localVideo.srcObject = mediaStream;
+    this.localStream = mediaStream;
+    console.log('Received local Stream')
+  }
+
+  callAction = () => {
+    console.log('Starting call.');
+
+    const videoTracks = this.localStream.getTrackById("myCanvas");
+    // if(videoTracks.length > 0){
+    //   console.log(`Using vedio device : ${videoTracks[0].label}`)
+    // }
+
+    const servers = null;
+    // const servers = 'http://localhost:3000/'; //Allows for RTC server configuration.
+
+    const offerOptions = {
+      iceRestart : false,
+      // offerToReceiveVideo : 1,
+    }
+
+
+    //동료 연결
+    this.localPeerConnection = new RTCPeerConnection(servers);
+    console.log('Created local peer connection object localPeerConnection');
+    
+    this.localPeerConnection.addEventListener('icecandidate',this.handleConnection);
+    this.localPeerConnection.addEventListener('iceconnectionstatechange', this.handleConnectionChange);
+    
+    this.remotePeerConnection = new RTCPeerConnection(servers);
+    
+    this.remotePeerConnection.addEventListener('iceconnectionstatechange', this.handleConnectionChange);
+    this.remotePeerConnection.addEventListener('addstream', this.gotRemoteMediaStream);
+    
+    this.localPeerConnection.addStream(this.localStream);
+
+    console.log("after localPeerConnection");
+
+    this.localPeerConnection.createOffer(offerOptions)
+    .then(this.createdOffer).catch(this.setSessionDescriptionError);
+  
+  }
+
+  handleConnection = (event) => {
+    const peerConnection = event.target;
+    const iceCandidate = event.candidate;
+
+    if(iceCandidate) {
+      const newIceCandidate = new RTCIceCandidate(iceCandidate);
+      const otherPeer = this.getOtherPeer(peerConnection);
+
+      otherPeer.addIceCandidate(newIceCandidate)
+      .then(() => {
+        this.handleConnectionSuccess(peerConnection);
+      }).catch((error) => {
+        console.log("Error", error);
+        // this.handleConnectionFailure(peerConnection, error);
+      });
+
+
+    }
+  }
+
+  getOtherPeer = (peerConnection) => {
+    return (peerConnection === this.localPeerConnection) ?
+    this.remotePeerConnection : this.localPeerConnection;
+  }
+
+  getPeerName(peerConnection){
+    return(peerConnection === this.localPeerConnection) ?
+    'localPeerConnection' : 'remotePeerConnection'
+  }
+
+  handleConnectionChange = (event) => {
+    const peerConnection = event.target;
+  }
+
+  handleConnectionSuccess = (peerConnection) => {
+    console.trace(`${this.getPeerName(peerConnection)}addIcdCandidate success`);
+
+  }
+
+  gotRemoteMediaStream = (event) => {
+    console.log("gotRemoteMediaStream");
+
+    const mediaStream = event.stream;
+    this.$otherCanvas.srcObject = mediaStream;
+    this.remoteStream = mediaStream;
+    
+  }
+
+  createdOffer = (description) => {
+    // console.log("createdOffer");
+
+    this.localPeerConnection.setLocalDescription(description)
+    .then(() => {
+      this.setLocalDescriptionSuccess(this.localPeerConnection);
+    }).catch((error) => this.setSessionDescriptionError(error, "localPeerConnection"));
+
+    // console.log("createdOffer localPeerConnection");
+
+    this.remotePeerConnection.setRemoteDescription(description)
+    .then(() => {
+      this.setRemoteDescriptionSuccess(this.remotePeerConnection);
+    }).catch((error) => this.setSessionDescriptionError(error, "remotePeerConnection"));
+
+    // console.log("createdOffer remotePeerConnection");
+    
+    this.remotePeerConnection.createAnswer()
+    .then(this.createdAnswer)
+    .catch(this.setSessionDescriptionError);
+  }
+
+  createdAnswer = (description) => {
+    this.remotePeerConnection.setLocalDescription(description)
+    .then(() => {
+      this.setLocalDescriptionSuccess(this.remotePeerConnection);
+    }).catch(this.setSessionDescriptionError);
+
+    this.localPeerConnection.setRemoteDescription(description)
+    .then(() => {
+      this.setRemoteDescriptionSuccess(this.localPeerConnection);
+    }).catch(this.setSessionDescriptionError)
+  }
+
+  setDescriptionSuccess = (peerConnection) => {
+    const peerName = this.getPeerName(peerConnection);
+    console.trace(`${peerName} complete`);
+
+  }
+
+  setLocalDescriptionSuccess = (peerConnection) => {
+    this.setDescriptionSuccess(peerConnection);
+  }
+
+  setRemoteDescriptionSuccess = (peerConnection) => {
+    this.setDescriptionSuccess(peerConnection);
+
+  }
+
+  setSessionDescriptionSuccess = (peerConnection) => {
+    const peerName = this.getPeerName(peerConnection);
+    console.trace(`${peerName} complete`)
+  }
+
+  setSessionDescriptionError = (error, type) => {
+    console.trace(type, `Failed to create session description : ${error}`)
+  }
 
   render() {
 
@@ -400,13 +430,19 @@ class Canvas extends Component {
 
         />
         <br/>
-        <canvas
+        {/* <canvas
           id="otherCanvas"
           width={1150}
           height={500}
           style={{ display: 'block', margin: 'auto', border: '1px solid black' }}
 
-        />
+        /> */}
+        <video id="otherCanvas" autoPlay playsInline
+        width = {1150}
+        height= {500}
+        style={{ display: 'block', margin: 'auto', border: '1px solid black' }}
+
+        ></video>
       </div>
 
     )
