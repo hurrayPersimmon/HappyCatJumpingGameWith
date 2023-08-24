@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { getRandomEnemyType, Entities } from './Entities.js';
+import { useCanvasContext } from './CanvasProvider.js';
 
 
 class Canvas extends Component {
@@ -11,11 +12,13 @@ class Canvas extends Component {
     this.animationFrameId = null;
     this.handleKeydown = this.handleKeydown.bind(this);
     this.backImg = new Image();
-    this.backImg.src = "images/background-1.png"; 
+    
+    this.backImg.src = "images/background2.jpg"; 
 
     this.score =  0;
     this.highScore = 0;
     this.game = true;
+    this.gaming = false;
 
     this.enemies = [];
     this.timer = 0;
@@ -27,6 +30,17 @@ class Canvas extends Component {
     this.localStream = null;
     this.remoteStream = null;
     this.localVideo = null;
+    this.localMediaStream = null;
+
+
+
+    this.backgroundX = 1150;
+
+
+    this.state = {
+      canvasDisplay : 'none',
+      otherCanvas : null,
+    }
 
     if (this.canvas) {
       this.canvasWidth = this.canvas.width;
@@ -35,52 +49,44 @@ class Canvas extends Component {
 
   }
 
-
-  // successCallback = (stream) => {
-  //   console.log("Received local stream");
-  //   if(window.URL){
-  //     localVideo.src = stream;
-  //     localStream = stream;
-  //   }
-  // }
-
-  // start = () => {
-  //   console.log("Requesting local stream");
-
-  //   navigator.getUserMedia = navigator.getUserMedia || navigator.webKitGetUserMedia
-  //   navigator.getUserMedia({audio : true, video : true}, this.successCallback,
-  //     (error) => {
-  //       console.log("navigator.getUserMedia : ", error);
-  //     }
-  //     ) 
-  // }
-
   componentDidMount() {
     this.canvas = document.getElementById('myCanvas');
     this.$otherCanvas = document.getElementById('otherCanvas');
     this.localVideo = this.canvas;
     this.ctx = this.canvas.getContext('2d');
 
+    const { canvasData , onDataFromCanvas } = this.props;
+    onDataFromCanvas(this.canvas);
+    this.setState({otherCanvas : canvasData});
+    console.log(this.state.otherCanvas);
+    // 여기까지 아주 잘 감.
+    console.log(canvasData);
+
+    
+    this.backImg.onload = () => {
+      this.ctx.drawImage(this.backImg,0,0,this.canvas.width,this.canvas.height);
+      
+      this.ctx.font = "80px serif";
+      this.ctx.fillStyle = "#000000";
+      this.ctx.textAlign = "center";
+      this.ctx.fillText("Happy Cat Jumping Game", this.canvas.width / 2, this.canvas.height / 2);
+
+      this.ctx.font = "30px serif"
+      this.ctx.fillText("please press Button", this.canvas.width / 2, 400, this.canvas.width / 2, this.canvas.height / 2);
+    }
+    
+    
+    // this.startActions();
+
     this.entityConstructor();
     window.addEventListener('keydown', this.handleKeydown);
-    this.startActions();
 
         // this.timer = 0;
     // this.timerOn = false;
     // this.userFrame = 0;
+    // this.startAnimation();
 
   }
-
-  startActions = async () => {
-    if(this.canvas) {
-      await this.startAction();
-      this.callAction();
-
-      this.startAnimation();
-    }
-    
-  }
-
 
   componentWillUnmount() {
     this.stopAnimation();
@@ -95,15 +101,23 @@ class Canvas extends Component {
     cancelAnimationFrame(this.animationFrameId);
   }
 
-  //------------------------------------    animate     ---------------------------------------
 
+
+  startActions = async () => {
+    if(this.canvas) {
+      await this.startAction();
+      this.callAction();
+    }
+    
+  }
+
+  //------------------------------------    animate     ---------------------------------------
   // 동작 할 함수들
   animate = () => {
     if (this.me) {
       // this.ctx.beginPath(); // 새 경로 시작
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.ctx.drawImage(this.backImg,0,0,this.canvas.width,this.canvas.height);
-
+      this.drawBackground();
       this.me.draw();
       this.me.Jump();
       this.spawnEnemy();
@@ -116,6 +130,14 @@ class Canvas extends Component {
   }
   //------------------------------------    animate     ---------------------------------------
 
+  drawBackground = () => {
+
+    this.ctx.drawImage(this.backImg,this.backgroundX -1145,0,this.canvas.width,this.canvas.height);
+    this.ctx.drawImage(this.backImg,this.backgroundX,0,this.canvas.width,this.canvas.height);
+    if(this.backgroundX === 0) this.backgroundX = 1150
+    else this.backgroundX -= 1;
+  }
+  
   //------------------------------------    enemySummon     ---------------------------------------
 
   entityConstructor = () => {
@@ -181,6 +203,7 @@ class Canvas extends Component {
   //------------------------------------    crush     ---------------------------------------
 
   isCrush = (me, enemy) => {
+
     // 1. 적이 가만히 있는 경우
     let xDif = me.x - (enemy.x + enemy.width);
     let yDif = enemy.y - (me.y + me.height);
@@ -189,7 +212,7 @@ class Canvas extends Component {
       xDif = enemy.x - (me.x + me.width);
     }
 
-    if (enemy.y < 290) {
+    if (enemy.y < me.defaultY) {
       yDif = me.y - (enemy.y + enemy.height);
     }
 
@@ -249,6 +272,22 @@ class Canvas extends Component {
       this.setState({ meIsResetting: true })
     }
   };
+
+  soloPlay = () => {
+    if(this.game && !this.gaming) {
+      this.startAnimation();
+      this.gaming = true;
+    }
+  
+  }
+
+  ready = () => {
+    if(this.game && !this.gaming) {
+    this.setState({canvasDisplay : 'block'});
+    this.startActions();
+    
+    }
+  }
   
   //------------------------------------    keydownEvent     ---------------------------------------
 
@@ -419,9 +458,10 @@ class Canvas extends Component {
   }
 
   render() {
+    const {canvasData} = this.props;
 
     return (
-      <div>
+      <div >
         <canvas
           id="myCanvas"
           width={1150}
@@ -430,6 +470,19 @@ class Canvas extends Component {
 
         />
         <br/>
+        <button  style={{margin : 'auto',}} onClick = {() => this.soloPlay()}>
+          Play
+        </button>
+
+        <button style={{margin : 'auto',}} onClick = {() => this.ready()}>
+          playwithOther
+        </button>
+
+        {/* <button style = {{display : this.state.canvasDisplay}} onClick = {() => this.ready()}>
+          ready
+        </button> */}
+
+        <br/>
         {/* <canvas
           id="otherCanvas"
           width={1150}
@@ -437,10 +490,10 @@ class Canvas extends Component {
           style={{ display: 'block', margin: 'auto', border: '1px solid black' }}
 
         /> */}
-        <video id="otherCanvas" autoPlay playsInline
+        <video id = "otherCanvas" autoPlay playsInline
         width = {1150}
         height= {500}
-        style={{ display: 'block', margin: 'auto', border: '1px solid black' }}
+        style={{ display: this.state.canvasDisplay, margin: 'auto', border: '1px solid black' }}
 
         ></video>
       </div>

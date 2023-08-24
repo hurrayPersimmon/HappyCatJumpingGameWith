@@ -15,16 +15,12 @@ class BaseEntity {
         // this.canvasHeight = canvasProps.canvasHeight;
 
         this.x = 0;
-        this.y = 290;
+        this.y = 375;
+        this.defaultY = 375;
         this.width = 55;
         this.height = 55;
         this.imageBasePath = "";
         this.numImage = 0;
-
-        this.drawX = 0;
-        this.drawY = 0;
-        this.drawWidth = 0;
-        this.drawHeight = 0;
 
         this.imgIndex = 0;
         this.frameCount = 0;
@@ -69,13 +65,20 @@ class BaseEntity {
     draw = () => {
         if (this.imageLoaded && this.ctx) {
 
+            this.hitX = this.x;
+            this.hitY = this.y;
+            this.hitWidth = this.width;
+            this.hitHeight = this.height;
+
             // this.ctx.beginPath(); // 새 경로 시작
             if (this.frameCount % this.imageConvertSpeed === 0) this.imgIndex++;
             if (this.imgIndex === this.imgArray.length) this.imgIndex = 0;
             // this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
             // console.log(this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight));
             const currentImage = this.imageObjects[this.imgIndex];
-            // this.ctx.fillRect(this.x, this.y, this.width, this.height); // hit box
+            // this.ctx.fillRect(this.hitX, this.hitY, this.hitWidth, this.hitHeight); // hit box
+            // this.ctx.fillRect(this.x, this.y, this.width, this.height);
+
             this.ctx.drawImage(currentImage, this.x, this.y, this.width, this.height);
             this.frameCount++;
             return true;
@@ -119,12 +122,12 @@ class Me extends BaseEntity {
         }
 
         if (!this.isJumping || this.isJumpNow) {
-            if (this.y <= 290) {
+            if (this.y <= this.defaultY) {
                 this.y += 3.5;
 
                 if (this.isStanding) this.y += 4;
-                if (this.y > 288) {
-                    this.y = 290;
+                if (this.y > (this.defaultY - 2)) {
+                    this.y = this.defaultY;
                     this.isJumpNow = false;
                 }
             }
@@ -197,7 +200,7 @@ class HappyCat extends Enemy {
             if (this.jumpSwitch) this.y -= 5;
             else this.y += 5;
         }
-        else this.y = 290;
+        else this.y = this.defaultY;
 
     }
 
