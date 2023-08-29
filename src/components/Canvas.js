@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { getRandomEnemyType, Entities } from './Entities.js';
-import { useCanvasContext } from './CanvasProvider.js';
+
 
 
 class Canvas extends Component {
@@ -31,15 +31,15 @@ class Canvas extends Component {
     this.remoteStream = null;
     this.localVideo = null;
     this.localMediaStream = null;
-
-
+    // this.otherDescription = null;
+    const { pageName } = this.props;
 
     this.backgroundX = 1150;
 
-
     this.state = {
       canvasDisplay : 'none',
-      otherCanvas : null,
+      buttonHide : 'none'
+
     }
 
     if (this.canvas) {
@@ -54,14 +54,6 @@ class Canvas extends Component {
     this.$otherCanvas = document.getElementById('otherCanvas');
     this.localVideo = this.canvas;
     this.ctx = this.canvas.getContext('2d');
-
-    const { canvasData , onDataFromCanvas } = this.props;
-    onDataFromCanvas(this.canvas);
-    this.setState({otherCanvas : canvasData});
-    console.log(this.state.otherCanvas);
-    // 여기까지 아주 잘 감.
-    console.log(canvasData);
-
     
     this.backImg.onload = () => {
       this.ctx.drawImage(this.backImg,0,0,this.canvas.width,this.canvas.height);
@@ -74,14 +66,20 @@ class Canvas extends Component {
       this.ctx.font = "30px serif"
       this.ctx.fillText("please press Button", this.canvas.width / 2, 400, this.canvas.width / 2, this.canvas.height / 2);
     }
-    
-    
-    // this.startActions();
 
     this.entityConstructor();
     window.addEventListener('keydown', this.handleKeydown);
 
-        // this.timer = 0;
+    // const { canvasData , onDataFromCanvas } = this.props;
+    // onDataFromCanvas(this.canvas);
+    // this.setState({otherCanvas : canvasData});
+    // console.log(this.state.otherCanvas);
+    // 여기까지 아주 잘 감.
+    // console.log(canvasData);
+    
+    // this.startActions();
+
+    // this.timer = 0;
     // this.timerOn = false;
     // this.userFrame = 0;
     // this.startAnimation();
@@ -111,6 +109,8 @@ class Canvas extends Component {
     
   }
 
+
+
   //------------------------------------    animate     ---------------------------------------
   // 동작 할 함수들
   animate = () => {
@@ -138,11 +138,9 @@ class Canvas extends Component {
     else this.backgroundX -= 1;
   }
   
-  //------------------------------------    enemySummon     ---------------------------------------
+  //------------------------------------    enemySpawn     ---------------------------------------
 
   entityConstructor = () => {
-
-
     const CanvasProps = {
       ctx: this.ctx,
       canvasWidth: this.canvas.width,
@@ -154,13 +152,9 @@ class Canvas extends Component {
     this.me.imageLoad();
     this.defeatEntity = new Entities.DefeatEntity(CanvasProps);
 
-
-
-
   }
   
   spawnEnemy = () => {
-
     const CanvasProps = {
       ctx: this.ctx,
       canvasWidth: this.canvas.width,
@@ -168,8 +162,6 @@ class Canvas extends Component {
       startAnimation: this.startAnimation,
     }
 
-
-    let enemyIndex = 0;
     this.timer++;
     if (this.timer % this.difficulty[0] === 0) {
       const enemyType = getRandomEnemyType();
@@ -281,10 +273,14 @@ class Canvas extends Component {
   
   }
 
-  ready = () => {
+  callOffer = () => {
     if(this.game && !this.gaming) {
-    this.setState({canvasDisplay : 'block'});
+    this.setState({
+      canvasDisplay : 'block',
+      buttonHide : 'flex',
+  });
     this.startActions();
+
     
     }
   }
@@ -292,10 +288,10 @@ class Canvas extends Component {
   //------------------------------------    keydownEvent     ---------------------------------------
 
   startAction = async () => {
-    const mediaStreamContraints = {
-      width : 1150,
-      height : 500,
-    }
+    // const mediaStreamContraints = {
+    //   width : 1150,
+    //   height : 500,
+    // }
 
     const mediaStream = this.canvas.captureStream(120); // 120 FPS
     console.log(mediaStream);
@@ -316,12 +312,14 @@ class Canvas extends Component {
   callAction = () => {
     console.log('Starting call.');
 
-    const videoTracks = this.localStream.getTrackById("myCanvas");
+    // const videoTracks = this.localStream.getTrackById("myCanvas");
     // if(videoTracks.length > 0){
     //   console.log(`Using vedio device : ${videoTracks[0].label}`)
     // }
 
     const servers = null;
+    // iceServers key
+    // stun server를 찾는 거라서 null은 로컬만 사용가능으로 추측.
     // const servers = 'http://localhost:3000/'; //Allows for RTC server configuration.
 
     const offerOptions = {
@@ -330,34 +328,55 @@ class Canvas extends Component {
     }
 
 
-    //동료 연결
+    // 송신자 역할.
     this.localPeerConnection = new RTCPeerConnection(servers);
+
     console.log('Created local peer connection object localPeerConnection');
     
     this.localPeerConnection.addEventListener('icecandidate',this.handleConnection);
+    // ice 후보가 수신되면 다른 피어에게 보내기.
     this.localPeerConnection.addEventListener('iceconnectionstatechange', this.handleConnectionChange);
-    
+    // ice 후보가 변경되면 다른 피어에게 보내기.
+
+    // 수신자 역할.
     this.remotePeerConnection = new RTCPeerConnection(servers);
+    // 동일한 ICE 서버로 통신.
     
     this.remotePeerConnection.addEventListener('iceconnectionstatechange', this.handleConnectionChange);
+
     this.remotePeerConnection.addEventListener('addstream', this.gotRemoteMediaStream);
     
+    // 전달해 줄 정보로 인식 일단은
+
+    //addStream 이벤트 발생, gotRemoteMediaStream 수신자가, localStream인 
     this.localPeerConnection.addStream(this.localStream);
 
-    console.log("after localPeerConnection");
+    // console.log("after localPeerConnection");
 
     this.localPeerConnection.createOffer(offerOptions)
     .then(this.createdOffer).catch(this.setSessionDescriptionError);
   
   }
 
+  getOtherPeer = (peerConnection) => {
+    return (peerConnection === this.localPeerConnection) ?
+    this.remotePeerConnection : this.localPeerConnection;
+  }
+
+  getPeerName(peerConnection){
+    return(peerConnection === this.localPeerConnection) ?
+    'localPeerConnection' : 'remotePeerConnection'
+  }
+
   handleConnection = (event) => {
+    console.log(event.candidate);
     const peerConnection = event.target;
     const iceCandidate = event.candidate;
 
     if(iceCandidate) {
       const newIceCandidate = new RTCIceCandidate(iceCandidate);
       const otherPeer = this.getOtherPeer(peerConnection);
+      console.log(newIceCandidate, otherPeer);
 
       otherPeer.addIceCandidate(newIceCandidate)
       .then(() => {
@@ -371,18 +390,11 @@ class Canvas extends Component {
     }
   }
 
-  getOtherPeer = (peerConnection) => {
-    return (peerConnection === this.localPeerConnection) ?
-    this.remotePeerConnection : this.localPeerConnection;
-  }
-
-  getPeerName(peerConnection){
-    return(peerConnection === this.localPeerConnection) ?
-    'localPeerConnection' : 'remotePeerConnection'
-  }
-
   handleConnectionChange = (event) => {
     const peerConnection = event.target;
+    console.log('ICE state change event: ', event);
+    console.trace(`${this.getPeerName(peerConnection)} ICE state: ` +
+    `${peerConnection.iceConnectionState}.`);
   }
 
   handleConnectionSuccess = (peerConnection) => {
@@ -391,6 +403,7 @@ class Canvas extends Component {
   }
 
   gotRemoteMediaStream = (event) => {
+    // 수신자
     console.log("gotRemoteMediaStream");
 
     const mediaStream = event.stream;
@@ -399,29 +412,88 @@ class Canvas extends Component {
     
   }
 
+
   createdOffer = (description) => {
-    // console.log("createdOffer");
+    console.log("createdOffer", description);
 
     this.localPeerConnection.setLocalDescription(description)
     .then(() => {
       this.setLocalDescriptionSuccess(this.localPeerConnection);
+      // session에 offer 저장, 나온 description(SDP)는 A를 B에 B는 A에 저장한다.
+      const DescriptionString = JSON.stringify({
+        type : description.type,
+        sdp : description.sdp
+      });
+      // console.log(DescriptionString);
+      localStorage.setItem(`offerState${this.props.pageName}`, DescriptionString);
+      // localStorage.setItem(`offerState${this.props.pageName}`, description);
+
+      // this.otherDescription = this.getOtherComponentDescription(this.props.pageName);
+      // console.log(this.otherDescription);
+  
+      // console.log("createdOffer localPeerConnection");
+      
     }).catch((error) => this.setSessionDescriptionError(error, "localPeerConnection"));
 
-    // console.log("createdOffer localPeerConnection");
-
-    this.remotePeerConnection.setRemoteDescription(description)
-    .then(() => {
-      this.setRemoteDescriptionSuccess(this.remotePeerConnection);
-    }).catch((error) => this.setSessionDescriptionError(error, "remotePeerConnection"));
+    
 
     // console.log("createdOffer remotePeerConnection");
     
+    // answer부분 당연히 독립적인 버튼으로 실행
+    // this.remotePeerConnection.createAnswer()
+    // .then(this.createdAnswer)
+    // .catch(this.setSessionDescriptionError);
+  }
+  setRemoteOffer = () => {
+
+    const otherDescription = this.getOtherComponentDescription(this.props.pageName);
+    // console.log(otherDescription);
+
+    this.remotePeerConnection.setRemoteDescription(otherDescription)
+    .then(() => {
+      console.log(otherDescription);
+      this.setRemoteDescriptionSuccess(this.remotePeerConnection);
+    }).catch((error) => 
+    {
+      console.log('here');
+      this.setSessionDescriptionError(error, "remotePeerConnection")
+    
+    });
+
     this.remotePeerConnection.createAnswer()
     .then(this.createdAnswer)
     .catch(this.setSessionDescriptionError);
+    
+  }
+
+  getOtherComponentDescription = (pageName) => {
+    let otherpageName = 0;
+    console.log("getOtherComponentDescription");
+
+    if(pageName === 1) otherpageName = 2;
+    else otherpageName = 1;
+    const offerString = localStorage.getItem(`offerState${otherpageName}`);
+    if (offerString) {
+      try {
+        const offer = JSON.parse(offerString);
+        return offer;
+      // offer 객체를 사용하여 작업 수행
+      } catch (error) {
+        console.error("Error parsing offer:", error);
+     }
+      } else {
+        console.error("Offer not found in storage.");
+    }
+    // const otherOffer = localStorage.getItem(`offerState${otherpageName}`);
+    // console.log((otherOffer));
+    // const test = JSON.parse(otherOffer);
+    // const otherOffer = localStorage.getItem(`offerState${otherpageName}`);
+
+    // return otherOffer;
   }
 
   createdAnswer = (description) => {
+    console.log("answer",description)
     this.remotePeerConnection.setLocalDescription(description)
     .then(() => {
       this.setLocalDescriptionSuccess(this.remotePeerConnection);
@@ -470,12 +542,16 @@ class Canvas extends Component {
 
         />
         <br/>
-        <button  style={{margin : 'auto',}} onClick = {() => this.soloPlay()}>
+        <button onClick = {() => this.soloPlay()}>
           Play
         </button>
 
-        <button style={{margin : 'auto',}} onClick = {() => this.ready()}>
+        <button onClick = {() => this.callOffer()}>
           playwithOther
+        </button>
+
+        <button style = {{display : this.state.buttonHide}} onClick = {() => this.setRemoteOffer()}>
+          connecting
         </button>
 
         {/* <button style = {{display : this.state.canvasDisplay}} onClick = {() => this.ready()}>
